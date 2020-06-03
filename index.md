@@ -1,37 +1,147 @@
-## Welcome to GitHub Pages
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<title>
+	</title>
+</head>
+<body>
+	<div style="text-align: center;">
+		<textarea id="textarea" style="width: 600px;height: 250px;"></textarea>
+	</div>
+	<div style="text-align: center;">
+		<button onclick="start()" style="width: 100px;height: 30px">转换</button>
+	</div>
+	<div id="result" style="margin: 0 auto;width: 600px;font-size: 22px"></div>
+</body>
+<script type="text/javascript">
+var gettype=Object.prototype.toString;
+String.prototype.firstUpperCase = function(){
+    return this.replace(/\b(\w)(\w*)/g, function($0, $1, $2) {
+        return $1.toUpperCase() + $2.toLowerCase();
+    });
+}
+function start(){
+try{
+	var result = JSON.parse(document.getElementById("textarea").value);
+}catch(error){
+	console.log("解析JSON文件失败:"+error);
+	return;
+}
+if (!result) {
+	console.log("解析JSON文件无效");
+	return;
+}
+document.classArray = new Array();
+parseObject("MyObject",result);
 
-You can use the [editor on GitHub](https://github.com/BYC810/JsonToOC/edit/master/index.md) to maintain and preview the content for your website in Markdown files.
+var stringAll="";
+for (var i = document.classArray.length-1; i >=0 ; i--) {
+	let cla = document.classArray[i];
+	stringAll+="@protocol "+cla.name+" @end\r\n\r\n@interface "+cla.name+" : JSONModel\r\n\r\n";
+	console.log("@protocol "+cla.name+" @end\r\n\r\n@interface "+cla.name+" : JSONModel\r\n\r\n");
+	for (var j = 0; j < cla.property.length; j++) {
+		stringAll+=cla.property[j]+"\r\n\r\n";
+		console.log(cla.property[j]+"\r\n\r\n");
+	}
+	stringAll+="@end\r\n\r\n";
+	console.log("@end\r\n\r\n");
+}
+stringAll+="===========m文件======================\r\n";
+console.log("===========m文件======================\r\n");
+for (var i = document.classArray.length-1; i >=0 ; i--) {
+	let cla = document.classArray[i];
+	stringAll+="@implementation "+cla.name+"\r\n\r\n@end\r\n\r\n";
+	console.log("@implementation "+cla.name+"\r\n\r\n@end\r\n\r\n");
+}
+document.getElementById("result").innerText = stringAll;
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+}
 
-### Markdown
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+function parseObject(k,result){
+	let c = new Class(k);
+	document.classArray.push(c);
+	for (var i = 0; i < Object.getOwnPropertyNames(result).length; i++) {
+		let key = Object.getOwnPropertyNames(result)[i];
+		let value = result[key];
+		let type = getType(value);
+		if(type==null){
+			continue;
+		}
+		if (type=="Object") {
+			//进行二次解析
+			if (Object.getOwnPropertyNames(value).length==0) {
+				c.property.push("@property(nonatomic,strong)NSDictionary<Optional>*"+key+";");
+			}else{
+				parseObject(key.firstUpperCase(),value);
+				c.property.push("@property(nonatomic,strong)"+key.firstUpperCase()+"<Optional,"+key.firstUpperCase()+">*"+key+";");
+			}
+			continue;
+		}
+		if (type=="Array") {
+			if (value.length>0) {
+				let obj = value[0];
+				let t = getType(obj);
+				if (t==null) {
+					continue;
+				}
+				if (t=="Object") {
+					c.property.push("@property(nonatomic,strong)NSArray<"+key.firstUpperCase()+"*><Optional,"+key.firstUpperCase()+">*"+key+";");
+					parseObject(key.firstUpperCase(),obj);
+				}else{
+					c.property.push("@property(nonatomic,strong)NSArray<"+t+"*><Optional>*"+key+";");
+				}
+			}else{
+				c.property.push("@property(nonatomic,strong)NSArray<Optional>*"+key+";");
+			}
+			continue;
+		}
+		if (type=="id") {
+			c.property.push("@property(nonatomic,strong)"+type+"<Optional>"+key+";");
+			continue;
+		}
+		c.property.push("@property(nonatomic,strong)"+type+"<Optional>*"+key+";");
+	}
+}
 
-```markdown
-Syntax highlighted code block
 
-# Header 1
-## Header 2
-### Header 3
 
-- Bulleted
-- List
+function getType(obj){
+	if (typeof obj == 'number') {
+		return "NSNumber";
+	}
+	if (typeof obj == 'undefined') {
+		return "id";
+	}
+	if (typeof obj == 'null') {
+		return "id";
+	}
+	if (typeof obj == 'function') {
+		return null;
+	}
+	if (typeof obj == 'string') {
+		return "NSString"
+	}
+	if (typeof obj == 'boolean') {
+		return "NSNumber"
+	}
+	if (typeof obj == 'object') {
+		if (gettype.call(obj)=="[object Object]") {
+			return "Object";
+		}
+		if (gettype.call(obj)=="[object Array]") {
+			return "Array";
+		} 
+		if (gettype.call(obj)=="[object Null]"){
+			return "id";
+		}
+	}
+}
 
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
-```
-
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
-
-### Jekyll Themes
-
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/BYC810/JsonToOC/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
-
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+function Class(name){
+	this.name = name;
+	this.property = new Array();
+}
+</script>
+</html>
